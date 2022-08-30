@@ -15,4 +15,4 @@ Esta actividad se divide en varias partes.
 ## Evidencia de lectura de datos obtenidos por el sensor MAX30102 y enviados por MQTT
 ![Datos enviados por MQTT](https://github.com/Alejandro-Dom/Detector_Sintomas_COVID/blob/main/Imagenes/Valores_MQTT_max30102) 
 
-3. 
+3. Una vez completado el punto anterior, se debe modificar el código para obtener la información de temperatura del sensor MLX90614 y enviar la información obtenida en formato JSON junto a los valores anteriormente obtenidos.
