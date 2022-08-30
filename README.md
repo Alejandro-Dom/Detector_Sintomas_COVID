@@ -13,6 +13,6 @@ Esta actividad se divide en varias partes.
     - Leer el ritmo cardiaco y la oxigenación de la sangre usando el sensor MAX30102. (Para ver el código revisar la carpeta DetectorSintomasCOVID)
 
 ## Evidencia de lectura de datos obtenidos por el sensor MAX30102 y enviados por MQTT
-(Datos enviados por MQTT)![https://github.com/Alejandro-Dom/Detector_Sintomas_COVID/blob/main/Imagenes/Valores_MQTT_max30102] 
+[Datos enviados por MQTT]!(https://github.com/Alejandro-Dom/Detector_Sintomas_COVID/blob/main/Imagenes/Valores_MQTT_max30102) 
 
 3. 
