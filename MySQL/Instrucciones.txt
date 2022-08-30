@@ -29,5 +29,6 @@
 - show tables; // Muestra la lista de tablas en la base de datos seleccionada
 - Los datos se guardan en tablas
 - describe [nombre]; // Muestra los detalles de una tabla de la base de datos seleccionada
+- Para salir usar el comando exit;
 
 
