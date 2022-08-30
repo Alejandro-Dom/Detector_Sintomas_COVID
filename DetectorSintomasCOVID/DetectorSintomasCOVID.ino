@@ -22,8 +22,8 @@
  * MAX30102     ESP32CAM
  * 5v-----------5v
  * GND----------GND
- * SDA----------SDA
- * SCL----------SCL
+ * SDA----------IO14
+ * SCL----------IO15
  */
 
  //Bibliotecas
@@ -44,15 +44,36 @@ IPAddress server(192,168,1,109);
 //Objetos
 WiFiClient espClient;           // Este objeto maneja los datos de conexion WiFi
 PubSubClient client(espClient); // Este objeto maneja los datos de conexion al broker
-MAX30105 particleSensor;        //
+MAX30105 particleSensor;        // Este objeto maneja los datos del sensor MAX30100
 
-
+#define MAX_BRIGHTNESS 255      // Constante de brillo para el sensor
 //Variables
-int flashLed = 4;  // Para indicar el estatus de conexión el Led flash
-int statusLed = 33; // Para mostrar mensajes recibidos
-long timeNow, timeLast; // Variables de control de tiempo no bloqueante
-int wait = 5000;  // Indica la espera cada 5 segundos para envío de mensajes MQTT
+int flashLed = 4;                             // Para indicar el estatus de conexión el Led flash
+int statusLed = 33;                           // Para mostrar mensajes recibidos
+long timeNow, timeLastMQTT, timeLastMax30100; // Variables de control de tiempo no bloqueante
+int wait = 5000;                              // Indica la espera cada 5 segundos para envío de mensajes MQTT
+int waitMax30100 = 4000;                      // Indica la espera para lectura del sensor Max30100
 
+// Bloque de constantes necesarias para el calculo de BPM y SPO2
+
+#if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega168__)
+//Arduino Uno doesn't have enough SRAM to store 100 samples of IR led data and red led data in 32-bit format
+//To solve this problem, 16-bit MSB of the sampled data will be truncated. Samples become 16-bit data.
+uint16_t irBuffer[100]; //infrared LED sensor data
+uint16_t redBuffer[100];  //red LED sensor data
+#else
+uint32_t irBuffer[100]; //infrared LED sensor data
+uint32_t redBuffer[100];  //red LED sensor data
+#endif
+
+int32_t bufferLength; //data length
+int32_t spo2; //SPO2 value
+int8_t validSPO2; //indicator to show if the SPO2 calculation is valid
+int32_t heartRate; //heart rate value
+int8_t validHeartRate; //indicator to show if the heart rate calculation is valid
+
+//byte pulseLED = 16; //Must be on PWM pin
+//byte readLED = 2; //Blinks with each data 
 
 //Valores iniciales del programa
 void setup() {
@@ -64,6 +85,10 @@ void setup() {
   pinMode (statusLed, OUTPUT);
   digitalWrite (flashLed, LOW);
   digitalWrite (statusLed, HIGH);
+
+//Pines Indicadores de funcionamiento del MAX30100
+  //pinMode(pulseLED, OUTPUT);
+  //pinMode(readLED, OUTPUT);
 
   Serial.println();
   Serial.println();
@@ -98,8 +123,33 @@ void setup() {
   client.setCallback(callback); // Activar función de CallBack, permite recibir mensajes MQTT y ejecutar funciones a partir de ellos
   delay(1500);  // Esta espera es preventiva, espera a la conexión para no perder información
 
-  timeLast = millis(); //Inicia el control de tiempo
+  // Iniciar el sensor Max30100
+  Wire.begin(14,15);
+  if (!particleSensor.begin(Wire, I2C_SPEED_FAST)) //Use default I2C port, 400kHz speed
+  {
+    Serial.println(F("No se encontro el MAX30102. Por favor revise la conexión."));
+    while (1);
+  }
+
+  // Seccion que espera a que el paciente se coloque el sensor para realizar la lectura
+  //Serial.println(F("Attach sensor to finger with rubber band. Press any key to start conversion"));
+  //while (Serial.available() == 0) ; //wait until user presses a key
+  //Serial.read();
+
+  byte ledBrightness = 60; //Options: 0=Off to 255=50mA
+  byte sampleAverage = 4; //Options: 1, 2, 4, 8, 16, 32
+  byte ledMode = 2; //Options: 1 = Red only, 2 = Red + IR, 3 = Red + IR + Green
+  byte sampleRate = 100; //Options: 50, 100, 200, 400, 800, 1000, 1600, 3200
+  int pulseWidth = 411; //Options: 69, 118, 215, 411
+  int adcRange = 4096; //Options: 2048, 4096, 8192, 16384
+
+  particleSensor.setup(ledBrightness, sampleAverage, ledMode, sampleRate, pulseWidth, adcRange); //Configure sensor with these settings
+
+  max30100First (); // Esta funcion realiza las primears 100 lecturas
   
+  timeLastMQTT = millis (); // Inicia el control de tiempo de envio mqtt
+  timeLastMax30100 = millis (); // Inicia el control de tiempo del sensor
+
  // Fin del void setup
 }
 
@@ -112,11 +162,55 @@ void loop() {
   client.loop(); // Esta función es muy importante, ejecuta de manera no bloqueante las funciones necesarias para la comunicación con el broker
 
  timeNow = millis(); // Control de tiempo para esperas no bloqueantes
-  if (timeNow - timeLast > wait) { // Manda un mensaje por MQTT cada cinco segundos
-    timeLast = timeNow; // Actualización de seguimiento de tiempo
+
+  if (timeNow - timeLastMax30100 > waitMax30100) { // Lectura del sensor cada cuatro segundos
+    timeLastMax30100 = timeNow; // Actualización de seguimiento de tiempo
+
+  //Bloque de programacion de lectura del sensor
+    //dumping the first 25 sets of samples in the memory and shift the last 75 sets of samples to the top
+    for (byte i = 25; i < 100; i++)
+    {
+      redBuffer[i - 25] = redBuffer[i];
+      irBuffer[i - 25] = irBuffer[i];
+    }
+
+    //take 25 sets of samples before calculating the heart rate.
+    for (byte i = 75; i < 100; i++)
+    {
+      while (particleSensor.available() == false) //do we have new data?
+        particleSensor.check(); //Check the sensor for new data
+
+      //digitalWrite(readLED, !digitalRead(readLED)); //Blink onboard LED with every data read
+
+      redBuffer[i] = particleSensor.getRed();
+      irBuffer[i] = particleSensor.getIR();
+      particleSensor.nextSample(); //We're finished with this sample so move to next sample
+
+      //send samples and calculation result to terminal program through UART
+
+      Serial.print(F(", HR="));
+      Serial.print(heartRate, DEC);
+
+      Serial.print(F(", HRvalid="));
+      Serial.print(validHeartRate, DEC);
+
+      Serial.print(F(", SPO2="));
+      Serial.print(spo2, DEC);
+
+      Serial.print(F(", SPO2Valid="));
+      Serial.println(validSPO2, DEC);
+    }
+
+    //After gathering 25 new samples recalculate HR and SP02
+    maxim_heart_rate_and_oxygen_saturation(irBuffer, bufferLength, redBuffer, &spo2, &validSPO2, &heartRate, &validHeartRate);
+    
+  }
+    
+  if (timeNow - timeLastMQTT > wait) { // Manda un mensaje por MQTT cada cinco segundos
+    timeLastMQTT = timeNow; // Actualización de seguimiento de tiempo
     
    //Se construye el string correspondiente al JSON que contiene 3 variables
-   String json = "{\"id\":\"Alex\",\"temp\":"+String(random(18, 23))+",\"hum\":"+String(random (38,52))+"}";
+   String json = "{\"hr\"= "+String(heartRate) + ",\"spo2\"= "+String(spo2)+"}";
    Serial.println(json); // Se imprime en monitor solo para poder visualizar que el string esta correctamente creado
    int str_len = json.length() + 1;//Se calcula la longitud del string
    char char_array[str_len];//Se crea un arreglo de caracteres de dicha longitud
@@ -182,3 +276,28 @@ void reconnect() {
     }// fin del else
   }// fin del bucle while (!client.connected())
 }// fin de void reconnect(
+
+
+// Funcion de primeras 100 lecturas
+void max30100First () {
+  bufferLength = 100; //buffer length of 100 stores 4 seconds of samples running at 25sps
+
+  //read the first 100 samples, and determine the signal range
+  for (byte i = 0 ; i < bufferLength ; i++)
+  {
+    while (particleSensor.available() == false) //do we have new data?
+      particleSensor.check(); //Check the sensor for new data
+
+    redBuffer[i] = particleSensor.getRed();
+    irBuffer[i] = particleSensor.getIR();
+    particleSensor.nextSample(); //We're finished with this sample so move to next sample
+
+    Serial.print(F("red="));
+    Serial.print(redBuffer[i], DEC);
+    Serial.print(F(", ir="));
+    Serial.println(irBuffer[i], DEC);
+  }
+
+  //calculate heart rate and SpO2 after first 100 samples (first 4 seconds of samples)
+  maxim_heart_rate_and_oxygen_saturation(irBuffer, bufferLength, redBuffer, &spo2, &validSPO2, &heartRate, &validHeartRate);
+}
