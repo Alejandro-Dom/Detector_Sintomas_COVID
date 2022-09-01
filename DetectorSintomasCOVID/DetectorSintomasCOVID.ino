@@ -134,7 +134,7 @@ void setup() {
 
   // Iniciar el sensor Max30100
   Wire.begin(14,15);
-  if (!particleSensor.begin(Wire, I2C_SPEED_FAST)) //Use default I2C port, 400kHz speed
+  if (!particleSensor.begin(Wire)) //Use default I2C port, 400kHz speed
   {
     Serial.println(F("No se encontro el MAX30102. Por favor revise la conexión."));
     while (1);
@@ -211,7 +211,7 @@ void loop() {
 
       //send samples and calculation result to terminal program through UART
 
-      /*Serial.print(F("HR="));
+      Serial.print(F("HR="));
       Serial.print(heartRate, DEC);
 
       Serial.print(F(", HRvalid="));
@@ -222,7 +222,7 @@ void loop() {
 
       Serial.print(F(", SPO2Valid="));
       Serial.println(validSPO2, DEC);
-      */
+      
     }
 
     //After gathering 25 new samples recalculate HR and SP02
@@ -233,12 +233,8 @@ void loop() {
     timeLastMLX = timeNow; // Actualización de seguimiento de tiempo
     
     tir = mlx.readObjectTempC();;
-    //Serial.print("Ambient = "); Serial.print(mlx.readAmbientTempC()); Serial.print("\n");
-    //Serial.print("*C\tObject = "); Serial.print(tir); Serial.println("*C");
-    char tirString[8]; // Define una arreglo de caracteres para enviarlos por MQTT, especifica la longitud del mensaje en 8 caracteres
-    dtostrf(tir, 1, 2, tirString);  // Esta es una función nativa de leguaje AVR que convierte un arreglo de caracteres en una variable String
-    Serial.print("°C: "); // Se imprime en monitor solo para poder visualizar que el evento sucede
-    Serial.println(tirString);
+    Serial.print("Ambiente = "); Serial.print(mlx.readAmbientTempC());
+    Serial.print("°C/t Objeto = "); Serial.print(tir); Serial.print("°C"); 
   }
   
   if (timeNow - timeLastMQTT > wait) { // Manda un mensaje por MQTT cada cinco segundos
