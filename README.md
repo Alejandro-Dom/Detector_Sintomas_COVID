@@ -19,4 +19,4 @@ Esta actividad se divide en varias partes.
 4. Cuando ya se puedan enviar correctamente los valores de ritmo cardíaco, oxigenación y temperatura obtenida por los sensores MAX30100 y MLX90614 y generar un dashboar utilizando NodeRed para que visualizar los datos obtenidos
 
 ## Evidencia de datos recibidos por MQTT y mostrados en un dashboard
-![Datos mostrados en un dashboard](https://github.com/Alejandro-Dom/Detector_Sintomas_COVID/blob/main/Imagenes/Valores_MQTT_max30102) 
+![Datos mostrados en un dashboard](https://github.com/Alejandro-Dom/Detector_Sintomas_COVID/blob/main/Imagenes/Dashboard_V1) 
