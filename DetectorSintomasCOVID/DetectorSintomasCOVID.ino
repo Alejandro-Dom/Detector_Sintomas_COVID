@@ -20,18 +20,25 @@
  * 
  * Conexión del Hardware 
  * MAX30102     ESP32CAM
- * 5v-----------5v
+ * Vin-----------5v
+ * GND----------GND
+ * SDA----------IO14
+ * SCL----------IO15
+ * 
+ * MLX90614     ESP32CAM
+ * Vin-----------5v
  * GND----------GND
  * SDA----------IO14
  * SCL----------IO15
  */
 
  //Bibliotecas
-#include <WiFi.h>           //Biblioteca para el control de WiFi
-#include <PubSubClient.h>   //Biblioteca para conexión MQTT
-#include <Wire.h>           //Biblioteca para comunicación I2C
-#include "MAX30105.h"       //Biblioteca del sensor 
-#include "spo2_algorithm.h" //Biblioteca para interpretación de señales
+#include <WiFi.h>              //Biblioteca para el control de WiFi
+#include <PubSubClient.h>      //Biblioteca para conexión MQTT
+#include <Wire.h>              //Biblioteca para comunicación I2C
+#include "MAX30105.h"          //Biblioteca del sensor 
+#include "spo2_algorithm.h"    //Biblioteca para interpretación de señales
+#include <Adafruit_MLX90614.h> //Biblioteca del sensor MLX90614 de temperatura infrarrojo
 
 //Datos del WiFi
 const char* ssid = "CASADOMXC"; //Se debe poner el nombre de la red
@@ -42,18 +49,20 @@ const char* mqtt_server = "192.168.1.109"; // Si estas en una red local, coloca 
 IPAddress server(192,168,1,109);
 
 //Objetos
-WiFiClient espClient;           // Este objeto maneja los datos de conexion WiFi
-PubSubClient client(espClient); // Este objeto maneja los datos de conexion al broker
-MAX30105 particleSensor;        // Este objeto maneja los datos del sensor MAX30100
+WiFiClient espClient;                         // Este objeto maneja los datos de conexion WiFi
+PubSubClient client(espClient);               // Este objeto maneja los datos de conexion al broker
+MAX30105 particleSensor;                      // Este objeto maneja los datos del sensor MAX30100
+Adafruit_MLX90614 mlx = Adafruit_MLX90614();  // Este objeto maneja los datos del sensor MLX90614
 
 #define MAX_BRIGHTNESS 255      // Constante de brillo para el sensor
 //Variables
 int flashLed = 4;                             // Para indicar el estatus de conexión el Led flash
 int statusLed = 33;                           // Para mostrar mensajes recibidos
-long timeNow, timeLastMQTT, timeLastMax30100; // Variables de control de tiempo no bloqueante
+long timeNow, timeLastMQTT, timeLastMax30100, timeLastMLX; // Variables de control de tiempo no bloqueante
 int wait = 5000;                              // Indica la espera cada 5 segundos para envío de mensajes MQTT
 int waitMax30100 = 4000;                      // Indica la espera para lectura del sensor Max30100
-
+int waitMLX = 500;                            // Indica la espera para lectura del sensor MLX90614
+int tir;                                     // En esta variable se guardará el valor obtenido del sensor de temperatura infraroja
 // Bloque de constantes necesarias para el calculo de BPM y SPO2
 
 #if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega168__)
@@ -146,10 +155,24 @@ void setup() {
   particleSensor.setup(ledBrightness, sampleAverage, ledMode, sampleRate, pulseWidth, adcRange); //Configure sensor with these settings
 
   max30100First (); // Esta funcion realiza las primears 100 lecturas
+
+  //Iniciar el sensor de temperatura
+  Serial.println("Adafruit MLX90614 test");
+
+  if (!mlx.begin(0x5A, &Wire)) {
+    Serial.println("Error connecting to MLX sensor. Check wiring.");
+    while (1);
+  };
+
+  Serial.print("Emissivity = "); Serial.println(mlx.readEmissivity());
+  Serial.println("================================================");
+
   
   timeLastMQTT = millis (); // Inicia el control de tiempo de envio mqtt
-  timeLastMax30100 = millis (); // Inicia el control de tiempo del sensor
+  timeLastMax30100 = millis (); // Inicia el control de tiempo del sensor MAX30100
+  timeLastMLX = millis (); // Inicia el control de tiempo del sensor MLX90614
 
+  
  // Fin del void setup
 }
 
@@ -188,7 +211,7 @@ void loop() {
 
       //send samples and calculation result to terminal program through UART
 
-      Serial.print(F(", HR="));
+      /*Serial.print(F("HR="));
       Serial.print(heartRate, DEC);
 
       Serial.print(F(", HRvalid="));
@@ -199,24 +222,38 @@ void loop() {
 
       Serial.print(F(", SPO2Valid="));
       Serial.println(validSPO2, DEC);
+      */
     }
 
     //After gathering 25 new samples recalculate HR and SP02
     maxim_heart_rate_and_oxygen_saturation(irBuffer, bufferLength, redBuffer, &spo2, &validSPO2, &heartRate, &validHeartRate);
     
   }
+  if (timeNow - timeLastMLX > waitMLX) {
+    timeLastMLX = timeNow; // Actualización de seguimiento de tiempo
     
+    tir = mlx.readObjectTempC();;
+    //Serial.print("Ambient = "); Serial.print(mlx.readAmbientTempC()); Serial.print("\n");
+    //Serial.print("*C\tObject = "); Serial.print(tir); Serial.println("*C");
+    char tirString[8]; // Define una arreglo de caracteres para enviarlos por MQTT, especifica la longitud del mensaje en 8 caracteres
+    dtostrf(tir, 1, 2, tirString);  // Esta es una función nativa de leguaje AVR que convierte un arreglo de caracteres en una variable String
+    Serial.print("°C: "); // Se imprime en monitor solo para poder visualizar que el evento sucede
+    Serial.println(tirString);
+  }
+  
   if (timeNow - timeLastMQTT > wait) { // Manda un mensaje por MQTT cada cinco segundos
     timeLastMQTT = timeNow; // Actualización de seguimiento de tiempo
     
    //Se construye el string correspondiente al JSON que contiene 3 variables
-   String json = "{\"hr\"= "+String(heartRate) + ",\"spo2\"= "+String(spo2)+"}";
+   String json = "{\"hr\": "+String(heartRate) + ",\"spo2\": "+String(spo2)+",\"tir\": "+String(tir)+"}";
    Serial.println(json); // Se imprime en monitor solo para poder visualizar que el string esta correctamente creado
    int str_len = json.length() + 1;//Se calcula la longitud del string
    char char_array[str_len];//Se crea un arreglo de caracteres de dicha longitud
    json.toCharArray(char_array, str_len);//Se convierte el string a char array    
    client.publish("codigoIoT/detectorSintomas/flow", char_array); // Esta es la función que envía los datos por MQTT, especifica el tema y el valor
   }// fin del if (timeNow - timeLast > wait)
+
+  
 }
 
 // Funciones de usuario
