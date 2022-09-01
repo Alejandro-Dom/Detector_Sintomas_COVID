@@ -166,7 +166,7 @@ void setup() {
 
   Serial.print("Emissivity = "); Serial.println(mlx.readEmissivity());
   Serial.println("================================================");
-
+  delay (500);
   
   timeLastMQTT = millis (); // Inicia el control de tiempo de envio mqtt
   timeLastMax30100 = millis (); // Inicia el control de tiempo del sensor MAX30100
@@ -232,16 +232,16 @@ void loop() {
   if (timeNow - timeLastMLX > waitMLX) {
     timeLastMLX = timeNow; // Actualización de seguimiento de tiempo
     
-    tir = mlx.readObjectTempC();;
-    Serial.print("Ambiente = "); Serial.print(mlx.readAmbientTempC());
-    Serial.print("°C/t Objeto = "); Serial.print(tir); Serial.print("°C"); 
+tir = mlx.readObjectTempC();
+    Serial.print("Ambiente = "); Serial.print(mlx.readAmbientTempC());    
+    Serial.print("°C\tObject = "); Serial.print(tir); Serial.println("°C");
   }
   
   if (timeNow - timeLastMQTT > wait) { // Manda un mensaje por MQTT cada cinco segundos
     timeLastMQTT = timeNow; // Actualización de seguimiento de tiempo
     
    //Se construye el string correspondiente al JSON que contiene 3 variables
-   String json = "{\"hr\": "+String(heartRate) + ",\"spo2\": "+String(spo2)+",\"tir\": "+String(tir)+"}";
+   String json = "{\"hr\":" + String (heartRate) + ",\"hrv\":" + String (validHeartRate) + ",\"spo2\":" + String (spo2) + ",\"spo2v\":"+ String (validSPO2) + ",\"tir\":"+ String(tir) + "}";
    Serial.println(json); // Se imprime en monitor solo para poder visualizar que el string esta correctamente creado
    int str_len = json.length() + 1;//Se calcula la longitud del string
    char char_array[str_len];//Se crea un arreglo de caracteres de dicha longitud
