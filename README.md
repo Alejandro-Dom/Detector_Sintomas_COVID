@@ -20,3 +20,32 @@ Esta actividad se divide en varias partes.
 
 ## Evidencia de datos recibidos por MQTT y mostrados en un dashboard
 ![Datos mostrados en un dashboard](https://github.com/Alejandro-Dom/Detector_Sintomas_COVID/blob/main/Imagenes/Dashboard_V1) 
+
+5. Crear una sección en la cual el paciente pueda ingresar su nombre y correo, con el fin de usar esa información en la base de datos de MySQL.
+
+6. Crear un botón que le ofrezca al paciente un protodiagnóstico:
+    - Signos vitales normales
+        - 35.5 < temperatura < 36.5
+	    - spo2 > 90
+	    - 60 < ritmo cardíaco < 100
+    - El nodo funcióón se configura con el siguiente código
+    ~~~
+    if((global.get("tir") > 35.5 && global.get("tir") < 36.5)&&(global.get("spo2") > 90) && (global.get("heartrate") > 60 && global.get("heartrate") < 100)){
+        msg.payload = "Signos vitales normales";
+        global.set("protodiagnostico", msg.payload);
+        return msg; 
+    }
+    else {
+        msg.payload = "Signos vitales anormales, asistir con un médico para confirmar diagnóstico ";
+        global.set("protodiagnostico", msg.payload);
+        return msg;
+    }  
+7. Usando el botón anterior, se mandarán todos los datos obtenidos a la base de datos con el siguiente comando:
+    ~~~
+    msg.topic = "INSERT INTO registro (`nombre`,`correo`,`temp`,`bpm`,`sp02`,`protodiagnostico`) VALUES ('" + global.get ("Paciente") + "','" + global.get ("Correo") + "'," + global.get ("tir") + "," + global.get ("heartrate") + "," + global.get ("spo2") + ",'" + global.get("protodiagnostico") + "');"; 
+    return msg;
+## Dashboard Final
+![Datos mostrados en el dashboard final](https://github.com/Alejandro-Dom/Detector_Sintomas_COVID/blob/main/Imagenes/Dashboard_final) 
+
+## Node Red
+![Nodos usados en NodeRed](https://github.com/Alejandro-Dom/Detector_Sintomas_COVID/blob/main/Imagenes/Flow_MySQL) 
