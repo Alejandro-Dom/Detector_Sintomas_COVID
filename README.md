@@ -1,7 +1,20 @@
 # Detector Sintomas COVID
 Este repositorio contiene todo lo necesario para realizar und etector de síntomas COVID con NodeRed, ESP32CAM, el sensor MAX30102, el sensor MLx90614 y MySQL. 
 
-Esta actividad se divide en varias partes.
+## IMPORTANTE
+***Este proyecto no realiza un diagnóstico médico. Se realiza un protodiagnóstico, el cual siguere al paciente ir a una revisión médica en caso de que sus signos vitales se encuentren fuera de los rangos normales***
+
+## Software y Hardware necesarios
+- Microcontrolador ESP32CAM
+- Convertidor USB Serial FTDI TTL FT232RL
+- Sensor MAX30100
+- Sensor MLX 90614
+- IDE de Arduino adaptada para ESP32CAM
+- Node Red
+- MySQL
+
+# Instrucciones
+La actividad se divide en varias partes.
 
 1. Instalar y crear la base de datos llamada registro. (Para ver las instrucciones detalladas ver el documento encontrado en la carpeta MySQL)
 
@@ -25,9 +38,9 @@ Esta actividad se divide en varias partes.
 
 6. Crear un botón que le ofrezca al paciente un protodiagnóstico:
     - Signos vitales normales
-        - 35.5 < temperatura < 36.5
-	    - spo2 > 90
-	    - 60 < ritmo cardíaco < 100
+        - 35.5 < Temperatura < 36.5
+	    - SPO2 > 90
+	    - 60 < Ritmo cardíaco < 100
     - El nodo funcióón se configura con el siguiente código
     ~~~
     if((global.get("tir") > 35.5 && global.get("tir") < 36.5)&&(global.get("spo2") > 90) && (global.get("heartrate") > 60 && global.get("heartrate") < 100)){
