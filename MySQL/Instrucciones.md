@@ -45,7 +45,7 @@
     return msg;
 8. Crear un nuevo usuario en MySQL y otorgar todos los privilegios
     ~~~
-    CREATE USER 'usuario'@'localhost' IDENTIFIED BY 'contraseña';
+    CREATE USER 'alex'@'localhost' IDENTIFIED BY '';
 
 	GRANT ALL PRIVILEGES ON *.* TO 'usuario'@'localhost';
     ~~~
